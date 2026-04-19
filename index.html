@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Щит Часу + Рефлексія</title>
+    <style>
+        body { 
+            font-family: 'Verdana', sans-serif; display: flex; flex-direction: column; align-items: center; 
+            background: #0a0a0a; color: #ffffff; margin: 0; padding: 20px; min-height: 100vh;
+            letter-spacing: 1.8px; 
+        }
+
+        #counter { 
+            font-size: 4.5rem; font-weight: 900; color: #00ff41; text-align: center; 
+            margin: 40px 0; text-shadow: 3px 3px 15px rgba(0, 0, 0, 1);
+        }
+
+        .unit { display: block; font-size: 1.6rem; color: #aaa; margin-top: 10px; }
+
+        .controls { 
+            background: #1a1a1a; padding: 30px; border-radius: 25px; width: 100%; 
+            max-width: 500px; border: 4px solid #444; margin-bottom: 30px;
+        }
+
+        label { font-size: 1.3rem; font-weight: bold; display: block; margin-bottom: 10px; color: #2196F3; }
+
+        input, textarea { 
+            width: 100%; padding: 20px; margin: 15px 0; border-radius: 15px; 
+            border: 4px solid #555; background: #000; color: #fff; font-size: 1.4rem;
+            box-sizing: border-box;
+        }
+
+        textarea { height: 150px; resize: vertical; border-color: #ff1744; }
+
+        button { 
+            width: 100%; padding: 25px; border-radius: 20px; border: none;
+            font-size: 1.5rem; font-weight: 900; text-transform: uppercase; cursor: pointer; 
+        }
+
+        .btn-main { background: #2196F3; color: white; margin-bottom: 15px; }
+        .btn-reset { background: #ff1744; color: white; border: 5px solid #000; }
+
+        #latestAchievement { 
+            display: none; background: #2a1f00; color: #ffca28; padding: 25px; 
+            border-radius: 20px; border: 5px solid #ff9800; font-weight: 900;
+            font-size: 1.6rem; text-align: center; margin-bottom: 25px; width: 100%; max-width: 500px;
+        }
+
+        .history-container { width: 100%; max-width: 500px; }
+        h3 { font-size: 2rem; border-bottom: 6px solid #333; padding-bottom: 15px; }
+
+        .history-item { 
+            background: #181818; padding: 25px; border-radius: 20px; margin-bottom: 20px; 
+            border-left: 12px solid #2196F3; font-size: 1.4rem;
+        }
+
+        .reflection-text { 
+            background: #252525; padding: 15px; border-radius: 10px; 
+            margin-top: 15px; font-style: italic; color: #ffca28; border: 1px dashed #555;
+        }
+
+        .history-date { color: #888; font-size: 1.1rem; margin-top: 10px; display: block; }
+    </style>
+</head>
+<body>
+
+    <div id="counter">0д 00:00:00 <span class="unit">чистого часу</span></div>
+
+    <div id="latestAchievement"></div>
+
+    <div class="controls">
+        <label>Встановити дату початку:</label>
+        <input type="datetime-local" id="manualDate">
+        <button id="saveBtn" class="btn-main">Встановити дату</button>
+
+        <label style="margin-top: 30px; color: #ff1744;">Рефлексія (чому стався зрив?):</label>
+        <textarea id="reflectionInput" placeholder="Опишіть тригери або емоції..."></textarea>
+        <button id="resetBtn" class="btn-reset">ЗРИВ & ЗБЕРЕГТИ</button>
+    </div>
+
+    <div class="history-container">
+        <h3>Журнал спроб та думок</h3>
+        <div id="historyList"></div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const counterElement = document.getElementById("counter");
+            const dateInput = document.getElementById("manualDate");
+            const reflectionInput = document.getElementById("reflectionInput");
+            const historyList = document.getElementById("historyList");
+            const achievementElement = document.getElementById("latestAchievement");
+
+            function formatTime(ms) {
+                const d = Math.floor(ms / 86400000);
+                const h = Math.floor((ms % 86400000) / 3600000);
+                const m = Math.floor((ms % 3600000) / 60000);
+                return `${d}д ${h}г ${m}хв`;
+            }
+
+            function updateCounter() {
+                const start = localStorage.getItem("startDate");
+                if (!start) { counterElement.innerHTML = `0д 00:00:00 <span class="unit">очікування</span>`; return; }
+                
+                const diff = new Date().getTime() - parseInt(start);
+                const d = Math.floor(diff / 86400000);
+                const h = Math.floor((diff % 86400000) / 3600000).toString().padStart(2, '0');
+                const m = Math.floor((diff % 3600000) / 60000).toString().padStart(2, '0');
+                const s = Math.floor((diff % 60000) / 1000).toString().padStart(2, '0');
+
+                counterElement.innerHTML = `${d}д ${h}:${m}:${s} <span class="unit">чистого часу</span>`;
+            }
+
+            function renderHistory() {
+                const history = JSON.parse(localStorage.getItem("trackerHistory") || "[]");
+                historyList.innerHTML = history.slice().reverse().map(item => `
+                    <div class="history-item">
+                        <div>Результат: <strong>${item.duration}</strong></div>
+                        ${item.note ? `<div class="reflection-text">Нотатка: ${item.note}</div>` : ''}
+                        <span class="history-date">📅 ${new Date(item.start).toLocaleDateString()} — ${new Date(item.end).toLocaleDateString()}</span>
+                    </div>
+                `).join('');
+            }
+
+            document.getElementById("resetBtn").addEventListener("click", () => {
+                const start = localStorage.getItem("startDate");
+                if (!start) {
+                    localStorage.setItem("startDate", new Date().getTime().toString());
+                    updateCounter();
+                    return;
+                }
+
+                if (confirm("Зберегти рефлексію та завершити спробу?")) {
+                    const now = new Date().getTime();
+                    const durationMs = now - parseInt(start);
+                    
+                    const history = JSON.parse(localStorage.getItem("trackerHistory") || "[]");
+                    history.push({ 
+                        start: parseInt(start), 
+                        end: now, 
+                        duration: formatTime(durationMs),
+                        note: reflectionInput.value.trim() 
+                    });
+                    localStorage.setItem("trackerHistory", JSON.stringify(history));
+                    
+                    // Ачівки
+                    const durations = history.slice(0, -1).map(h => h.end - h.start);
+                    if (durations.length > 0 && durationMs > Math.max(...durations)) {
+                        achievementElement.innerText = "🎯 НОВИЙ РЕКОРД!";
+                        achievementElement.style.display = 'block';
+                    }
+
+                    localStorage.removeItem("startDate");
+                    reflectionInput.value = ""; // Очищуємо поле
+                    renderHistory();
+                    updateCounter();
+                }
+            });
+
+            document.getElementById("saveBtn").addEventListener("click", () => {
+                if (dateInput.value) {
+                    localStorage.setItem("startDate", new Date(dateInput.value).getTime().toString());
+                    updateCounter();
+                }
+            });
+
+            renderHistory();
+            setInterval(updateCounter, 1000);
+        });
+    </script>
+</body>
+</html>
